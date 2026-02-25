@@ -299,7 +299,7 @@ def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations:
         df = df_raw
         log("  Standard row-per-entity format")
 
-    # ── Load ontology
+    # ── Load ontologyhh
     log("\n🔍 Loading ontology...")
     g = Graph()
     g.bind("owl", OWL)
