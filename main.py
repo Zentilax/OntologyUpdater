@@ -131,8 +131,19 @@ def individual_exists(graph, uri):
 
 
 def validate_property_value(value):
-    if value is None or value == "" or (isinstance(value, float) and pd.isna(value)) or str(value).lower() in ["nan", "null", "none"]:
+    if value is None:
         return None
+    # Handle numpy/pandas NA types
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if str(value).lower() in ["nan", "nat", "null", "none", ""]:
+        return None
+    # Unwrap numpy scalars
+    if hasattr(value, 'item'):
+        value = value.item()
     return value
 
 
@@ -183,8 +194,26 @@ def untranspose_cabai_csv(df_transposed):
     return df_untransposed
 
 
+def safe_json_serialize(row_dict):
+    """Convert a pandas row dict to a JSON-safe plain dict."""
+    clean = {}
+    for k, v in row_dict.items():
+        if v is None:
+            continue
+        if isinstance(v, float) and pd.isna(v):
+            continue
+        if hasattr(v, 'item'):          # numpy scalar → python native
+            v = v.item()
+        if pd.isna(v) if not isinstance(v, (str, int, float, bool)) else False:
+            continue
+        if v == "" or str(v).lower() in ("nan", "nat", "none", "null"):
+            continue
+        clean[str(k)] = str(v) if not isinstance(v, (int, float, bool)) else v
+    return clean
+
+
 def map_row_with_llm(client, row_dict, ontology_schema):
-    filtered_dict = {k: v for k, v in row_dict.items() if not (isinstance(v, float) and pd.isna(v)) and v != ""}
+    filtered_dict = safe_json_serialize(row_dict)
     if not filtered_dict:
         return None
 
@@ -221,9 +250,13 @@ OUTPUT (strict JSON):
             ],
             temperature=0,
         )
-        result = json.loads(response.choices[0].message.content)
+        raw = response.choices[0].message.content
+        result = json.loads(raw)
+        # Guard: must be a dict with cabai_name
+        if not isinstance(result, dict):
+            return None
         return result if "cabai_name" in result else None
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -299,7 +332,7 @@ def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations:
         df = df_raw
         log("  Standard row-per-entity format")
 
-    # ── Load ontologyhh
+    # ── Load ontology
     log("\n🔍 Loading ontology...")
     g = Graph()
     g.bind("owl", OWL)
@@ -340,7 +373,7 @@ def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations:
 
             mapping = map_row_with_llm(client, row_dict, ontology_schema)
 
-            if mapping is None:
+            if mapping is None or not isinstance(mapping, dict):
                 log(f"  ⚠ Skipped — LLM returned no mapping")
                 stats["skipped"] += 1
                 continue
@@ -416,7 +449,9 @@ def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations:
             log(f"  ✓ Done — {properties_added} properties added")
 
         except Exception as e:
-            log(f"  ✗ Error on row {row_num}: {str(e)}")
+            import traceback
+            traceback.print_exc()   # full details in Railway logs
+            log(f"  ✗ Error on row {row_num}: {str(e)}")  # brief in frontend
             stats["failed"] += 1
 
     # ── Serialize
@@ -503,7 +538,16 @@ async def update_ontology(
             enable_recommendations=enable_recommendations,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        # Full traceback to Railway logs
+        traceback.print_exc()
+        # Brief message + any partial logs to frontend
+        brief = str(e)
+        return JSONResponse(status_code=500, content={
+            "success": False,
+            "detail": brief,
+            "logs": [f"✗ Fatal error: {brief}"],
+        })
 
     owl_b64 = base64.b64encode(owl_str.encode("utf-8")).decode("ascii")
     owl_filename = owl_file.filename.replace(".owl", "_updated.owl")
