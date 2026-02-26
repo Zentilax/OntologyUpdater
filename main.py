@@ -3,18 +3,20 @@ import io
 import json
 import os
 import re
+import traceback
 from collections import defaultdict
 from datetime import datetime
+from typing import Generator
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from openai import OpenAI
 from rdflib import Graph, Literal, Namespace, RDF, RDFS, OWL
 from rdflib.namespace import XSD
 
-app = FastAPI(title="Ontology Updater API", version="3.0.0")
+app = FastAPI(title="Ontology Updater API", version="4.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,9 +91,6 @@ class OntologyRecommendations:
     def mark_property_unmapped(self, name): self.unmapped_columns.add(name)
     def mark_property_rejected(self, name): self.rejected_properties.add(name)
 
-    def has_recommendations(self):
-        return len(self.new_classes) > 0 or len(self.new_properties) > 0 or len(self.new_object_properties) > 0
-
     def to_dict(self):
         return {
             "timestamp": datetime.now().isoformat(),
@@ -115,7 +114,7 @@ class OntologyRecommendations:
 
 
 # =============================================================================
-# Pure helper functions
+# Helpers
 # =============================================================================
 
 def sanitize_uri(name):
@@ -133,7 +132,6 @@ def individual_exists(graph, uri):
 def validate_property_value(value):
     if value is None:
         return None
-    # Handle numpy/pandas NA types
     try:
         if pd.isna(value):
             return None
@@ -141,7 +139,6 @@ def validate_property_value(value):
         pass
     if str(value).lower() in ["nan", "nat", "null", "none", ""]:
         return None
-    # Unwrap numpy scalars
     if hasattr(value, 'item'):
         value = value.item()
     return value
@@ -195,19 +192,19 @@ def untranspose_cabai_csv(df_transposed):
 
 
 def safe_json_serialize(row_dict):
-    """Convert a pandas row dict to a JSON-safe plain dict."""
     clean = {}
     for k, v in row_dict.items():
         if v is None:
             continue
-        if isinstance(v, float) and pd.isna(v):
+        try:
+            if pd.isna(v):
+                continue
+        except (TypeError, ValueError):
+            pass
+        if str(v).lower() in ("nan", "nat", "none", "null", ""):
             continue
-        if hasattr(v, 'item'):          # numpy scalar → python native
+        if hasattr(v, 'item'):
             v = v.item()
-        if pd.isna(v) if not isinstance(v, (str, int, float, bool)) else False:
-            continue
-        if v == "" or str(v).lower() in ("nan", "nat", "none", "null"):
-            continue
         clean[str(k)] = str(v) if not isinstance(v, (int, float, bool)) else v
     return clean
 
@@ -240,50 +237,37 @@ OUTPUT (strict JSON):
   "unmapped_properties": {{}}
 }}"""
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": "Expert ontology mapper. Return only valid JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
-        )
-        raw = response.choices[0].message.content
-        result = json.loads(raw)
-        # Guard: must be a dict with cabai_name
-        if not isinstance(result, dict):
-            return None
-        return result if "cabai_name" in result else None
-    except Exception:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": "Expert ontology mapper. Return only valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+    )
+    result = json.loads(response.choices[0].message.content)
+    if not isinstance(result, dict) or "cabai_name" not in result:
         return None
+    return result
 
 
 def analyze_recommendations(client, df, ontology_schema, recommendations):
     if not recommendations.unmapped_columns:
         return {"new_classes": [], "new_datatype_properties": [], "new_object_properties": []}
-
     cols = [c for c in recommendations.unmapped_columns if c in df.columns]
     if not cols:
         return {"new_classes": [], "new_datatype_properties": [], "new_object_properties": []}
-
     sample_data = df[cols].head(5).to_dict("records")
-
     prompt = f"""You are an ontology expert analyzing ONLY truly unmapped columns.
-
 CURRENT ONTOLOGY:
 Classes: {', '.join(ontology_schema['classes'])}
 Datatype Properties: {', '.join(ontology_schema['datatype_properties'])}
 Object Properties: {', '.join(ontology_schema['object_properties'])}
-
 UNMAPPED COLUMNS: {', '.join(cols)}
 SAMPLE DATA: {json.dumps(sample_data, indent=2, ensure_ascii=False)}
-
 RULES: Be VERY conservative. Only recommend if confidence >= 0.75. Return JSON only.
-
 {{"new_classes": [], "new_datatype_properties": [], "new_object_properties": []}}"""
-
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -294,211 +278,243 @@ RULES: Be VERY conservative. Only recommend if confidence >= 0.75. Return JSON o
             ],
             temperature=0.1,
         )
-        return json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content)
+        if not isinstance(result, dict):
+            return {"new_classes": [], "new_datatype_properties": [], "new_object_properties": []}
+        # Ensure each list contains only dicts
+        for key in ("new_classes", "new_datatype_properties", "new_object_properties"):
+            result[key] = [x for x in result.get(key, []) if isinstance(x, dict)]
+        return result
     except Exception:
         return {"new_classes": [], "new_datatype_properties": [], "new_object_properties": []}
 
 
 # =============================================================================
-# Main processing function — uses a log list instead of print()
+# SSE helpers — every yielded string is immediately flushed to the browser
 # =============================================================================
 
-def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool):
-    logs = []
+def sse_log(msg: str) -> str:
+    """Send a plain log line to the frontend terminal."""
+    print(msg)  # also goes to Railway logs
+    return f"data: {json.dumps({'type': 'log', 'msg': msg})}\n\n"
 
-    def log(msg: str):
-        print(msg)          # still prints to Railway console
-        logs.append(msg)    # also captured for frontend
 
+def sse_done(payload: dict) -> str:
+    """Send the final result payload."""
+    return f"data: {json.dumps({'type': 'done', **payload})}\n\n"
+
+
+def sse_error(msg: str) -> str:
+    print(f"ERROR: {msg}")
+    return f"data: {json.dumps({'type': 'error', 'msg': msg})}\n\n"
+
+
+# =============================================================================
+# Main streaming generator — yields SSE lines one by one
+# =============================================================================
+
+def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool) -> Generator[str, None, None]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set on server")
+        yield sse_error("OPENAI_API_KEY not configured on server")
+        return
 
     client = OpenAI(api_key=api_key)
 
-    # ── Load CSV
-    log("=" * 60)
-    log("ONTOLOGY UPDATE PROCESS")
-    log("=" * 60)
+    def log(msg: str):
+        yield sse_log(msg)
 
-    df_raw = pd.read_csv(io.BytesIO(csv_bytes))
-    log(f"\n✓ CSV loaded: {df_raw.shape[0]} rows × {df_raw.shape[1]} columns")
+    try:
+        yield sse_log("=" * 60)
+        yield sse_log("ONTOLOGY UPDATE PROCESS")
+        yield sse_log("=" * 60)
 
-    if auto_detect_cabai_format(df_raw):
-        log("  Transposed format detected — untransposing...")
-        df = untranspose_cabai_csv(df_raw)
-        log(f"  After untranspose: {df.shape[0]} rows × {df.shape[1]} columns")
-    else:
-        df = df_raw
-        log("  Standard row-per-entity format")
+        # ── Load CSV
+        df_raw = pd.read_csv(io.BytesIO(csv_bytes))
+        yield sse_log(f"\n✓ CSV loaded: {df_raw.shape[0]} rows × {df_raw.shape[1]} columns")
 
-    # ── Load ontology
-    log("\n🔍 Loading ontology...")
-    g = Graph()
-    g.bind("owl", OWL)
-    g.bind("rdf", RDF)
-    g.bind("rdfs", RDFS)
-    g.parse(data=owl_bytes, format="xml")
-    triple_count = len(g)
+        if auto_detect_cabai_format(df_raw):
+            yield sse_log("  Transposed format detected — untransposing...")
+            df = untranspose_cabai_csv(df_raw)
+            yield sse_log(f"  After untranspose: {df.shape[0]} rows × {df.shape[1]} columns")
+        else:
+            df = df_raw
+            yield sse_log("  Standard row-per-entity format")
 
-    ontology_schema = extract_ontology_schema(g)
-    log(f"✓ Classes ({len(ontology_schema['classes'])}): {', '.join(ontology_schema['classes'])}")
-    log(f"✓ Datatype properties: {len(ontology_schema['datatype_properties'])}")
-    log(f"✓ Object properties: {len(ontology_schema['object_properties'])}")
+        # ── Load ontology
+        yield sse_log("\n🔍 Loading ontology...")
+        g = Graph()
+        g.bind("owl", OWL)
+        g.bind("rdf", RDF)
+        g.bind("rdfs", RDFS)
+        g.parse(data=owl_bytes, format="xml")
+        triple_count = len(g)
 
-    recommendations = OntologyRecommendations(ontology_schema)
+        ontology_schema = extract_ontology_schema(g)
+        yield sse_log(f"✓ Classes ({len(ontology_schema['classes'])}): {', '.join(ontology_schema['classes'])}")
+        yield sse_log(f"✓ Datatype properties: {len(ontology_schema['datatype_properties'])}")
+        yield sse_log(f"✓ Object properties: {len(ontology_schema['object_properties'])}")
 
-    stats = {
-        "total_rows": len(df),
-        "successful": 0,
-        "failed": 0,
-        "new_cabai": 0,
-        "new_daerah": 0,
-        "skipped": 0,
-        "existing_cabai_updated": 0,
-        "total_properties_added": 0,
-        "new_properties_created": 0,
-        "properties_rejected": 0,
-    }
+        recommendations = OntologyRecommendations(ontology_schema)
+        stats = {
+            "total_rows": len(df), "successful": 0, "failed": 0,
+            "new_cabai": 0, "new_daerah": 0, "skipped": 0,
+            "existing_cabai_updated": 0, "total_properties_added": 0,
+            "new_properties_created": 0, "properties_rejected": 0,
+        }
 
-    total = len(df)
-    log(f"\n🔄 Processing {total} rows...")
-    log("-" * 60)
+        total = len(df)
+        yield sse_log(f"\n🔄 Processing {total} rows...")
+        yield sse_log("-" * 60)
 
-    for idx, row in df.iterrows():
-        row_num = idx + 1
-        try:
-            row_dict = row.to_dict()
-            log(f"\n[Row {row_num}/{total}] Calling GPT to map row...")
+        for idx, row in df.iterrows():
+            row_num = idx + 1
+            try:
+                row_dict = row.to_dict()
+                yield sse_log(f"\n[Row {row_num}/{total}] Calling GPT to map row...")
 
-            mapping = map_row_with_llm(client, row_dict, ontology_schema)
-
-            if mapping is None or not isinstance(mapping, dict):
-                log(f"  ⚠ Skipped — LLM returned no mapping")
-                stats["skipped"] += 1
-                continue
-
-            cabai_name = sanitize_uri(mapping.get("cabai_name"))
-            daerah_name = sanitize_uri(mapping.get("daerah_asal"))
-
-            if not cabai_name:
-                log(f"  ⚠ Skipped — no cabai name identified")
-                stats["skipped"] += 1
-                continue
-
-            log(f"  ✓ Cabai: {cabai_name}" + (f"  |  Daerah: {daerah_name}" if daerah_name else ""))
-
-            cabai_uri = ns[cabai_name]
-            if not individual_exists(g, cabai_uri):
-                g.add((cabai_uri, RDF.type, OWL.NamedIndividual))
-                g.add((cabai_uri, RDF.type, ns.Cabai))
-                stats["new_cabai"] += 1
-                log(f"  + New Cabai individual created")
-            else:
-                if (cabai_uri, RDF.type, OWL.NamedIndividual) not in g:
-                    g.add((cabai_uri, RDF.type, OWL.NamedIndividual))
-                stats["existing_cabai_updated"] += 1
-                log(f"  ~ Updating existing Cabai")
-
-            if daerah_name:
-                daerah_uri = ns[daerah_name]
-                if not individual_exists(g, daerah_uri):
-                    g.add((daerah_uri, RDF.type, OWL.NamedIndividual))
-                    g.add((daerah_uri, RDF.type, ns.DaerahAsal))
-                    stats["new_daerah"] += 1
-                    log(f"  + New DaerahAsal: {daerah_name}")
-                else:
-                    if (daerah_uri, RDF.type, OWL.NamedIndividual) not in g:
-                        g.add((daerah_uri, RDF.type, OWL.NamedIndividual))
-                if (cabai_uri, ns.berasalDari, daerah_uri) not in g:
-                    g.add((cabai_uri, ns.berasalDari, daerah_uri))
-
-            properties_added = 0
-            for prop, value in mapping.get("datatype_properties", {}).items():
-                clean_value = validate_property_value(value)
-                if clean_value is None:
+                try:
+                    mapping = map_row_with_llm(client, row_dict, ontology_schema)
+                except Exception as e:
+                    traceback.print_exc()
+                    yield sse_log(f"  ✗ LLM error: {str(e)}")
+                    stats["failed"] += 1
                     continue
 
-                in_schema = prop in ontology_schema["datatype_properties"]
-                if not in_schema:
-                    stats["new_properties_created"] += 1
-                    log(f"  ⚡ New property created: {prop}")
+                if mapping is None or not isinstance(mapping, dict):
+                    yield sse_log(f"  ⚠ Skipped — LLM returned no mapping")
+                    stats["skipped"] += 1
+                    continue
 
-                recommendations.mark_property_mapped(prop)
-                prop_uri = ns[prop]
+                cabai_name = sanitize_uri(mapping.get("cabai_name"))
+                daerah_name = sanitize_uri(mapping.get("daerah_asal"))
 
-                if isinstance(clean_value, bool):
-                    literal = Literal(clean_value, datatype=XSD.boolean)
-                elif isinstance(clean_value, int):
-                    literal = Literal(clean_value, datatype=XSD.integer)
-                elif isinstance(clean_value, float):
-                    literal = Literal(clean_value, datatype=XSD.float)
+                if not cabai_name or cabai_name.lower().startswith("unnamed"):
+                    yield sse_log(f"  ⚠ Skipped — cabai name looks like a CSV artefact: {cabai_name}")
+                    stats["skipped"] += 1
+                    continue
+
+                yield sse_log(f"  ✓ Cabai: {cabai_name}" + (f"  |  Daerah: {daerah_name}" if daerah_name else ""))
+
+                cabai_uri = ns[cabai_name]
+                if not individual_exists(g, cabai_uri):
+                    g.add((cabai_uri, RDF.type, OWL.NamedIndividual))
+                    g.add((cabai_uri, RDF.type, ns.Cabai))
+                    stats["new_cabai"] += 1
+                    yield sse_log(f"  + New Cabai individual created")
                 else:
-                    literal = Literal(str(clean_value), datatype=XSD.string)
+                    if (cabai_uri, RDF.type, OWL.NamedIndividual) not in g:
+                        g.add((cabai_uri, RDF.type, OWL.NamedIndividual))
+                    stats["existing_cabai_updated"] += 1
+                    yield sse_log(f"  ~ Updating existing Cabai")
 
-                g.remove((cabai_uri, prop_uri, None))
-                g.add((cabai_uri, prop_uri, literal))
-                properties_added += 1
+                if daerah_name:
+                    daerah_uri = ns[daerah_name]
+                    if not individual_exists(g, daerah_uri):
+                        g.add((daerah_uri, RDF.type, OWL.NamedIndividual))
+                        g.add((daerah_uri, RDF.type, ns.DaerahAsal))
+                        stats["new_daerah"] += 1
+                        yield sse_log(f"  + New DaerahAsal: {daerah_name}")
+                    else:
+                        if (daerah_uri, RDF.type, OWL.NamedIndividual) not in g:
+                            g.add((daerah_uri, RDF.type, OWL.NamedIndividual))
+                    if (cabai_uri, ns.berasalDari, daerah_uri) not in g:
+                        g.add((cabai_uri, ns.berasalDari, daerah_uri))
 
-            for unmapped_col in mapping.get("unmapped_properties", {}).keys():
-                recommendations.mark_property_unmapped(unmapped_col)
-                log(f"  ? Unmapped column: {unmapped_col}")
+                properties_added = 0
+                for prop, value in mapping.get("datatype_properties", {}).items():
+                    clean_value = validate_property_value(value)
+                    if clean_value is None:
+                        continue
+                    in_schema = prop in ontology_schema["datatype_properties"]
+                    if not in_schema:
+                        stats["new_properties_created"] += 1
+                        yield sse_log(f"  ⚡ New property: {prop}")
+                    recommendations.mark_property_mapped(prop)
+                    prop_uri = ns[prop]
+                    if isinstance(clean_value, bool):
+                        literal = Literal(clean_value, datatype=XSD.boolean)
+                    elif isinstance(clean_value, int):
+                        literal = Literal(clean_value, datatype=XSD.integer)
+                    elif isinstance(clean_value, float):
+                        literal = Literal(clean_value, datatype=XSD.float)
+                    else:
+                        literal = Literal(str(clean_value), datatype=XSD.string)
+                    g.remove((cabai_uri, prop_uri, None))
+                    g.add((cabai_uri, prop_uri, literal))
+                    properties_added += 1
 
-            stats["total_properties_added"] += properties_added
-            stats["successful"] += 1
-            log(f"  ✓ Done — {properties_added} properties added")
+                for unmapped_col in mapping.get("unmapped_properties", {}).keys():
+                    recommendations.mark_property_unmapped(unmapped_col)
+                    yield sse_log(f"  ? Unmapped: {unmapped_col}")
 
-        except Exception as e:
-            import traceback
-            traceback.print_exc()   # full details in Railway logs
-            log(f"  ✗ Error on row {row_num}: {str(e)}")  # brief in frontend
-            stats["failed"] += 1
+                stats["total_properties_added"] += properties_added
+                stats["successful"] += 1
+                yield sse_log(f"  ✓ Done — {properties_added} properties added")
 
-    # ── Serialize
-    log("\n💾 Serializing ontology...")
-    raw = g.serialize(format="xml")
-    owl_str = raw if isinstance(raw, str) else raw.decode("utf-8")
-    owl_str = fix_owl_namespace_str(owl_str)
-    stats["triples_added"] = len(g) - triple_count
-    log(f"✓ Serialized — {stats['triples_added']} triples added")
+            except Exception as e:
+                traceback.print_exc()
+                yield sse_log(f"  ✗ Error on row {row_num}: {str(e)}")
+                stats["failed"] += 1
 
-    # ── Recommendations
-    rec_dict = {}
-    if enable_recommendations:
-        log("\n🔍 Analysing unmapped columns for recommendations...")
-        analysis = analyze_recommendations(client, df, ontology_schema, recommendations)
-        for cs in analysis.get("new_classes", []):
-            if cs.get("confidence", 0) >= 0.80:
-                recommendations.add_class_suggestion(cs["name"], cs["evidence"], cs["confidence"], cs.get("suggested_properties"))
-        for ps in analysis.get("new_datatype_properties", []):
-            if ps.get("confidence", 0) >= 0.75:
-                for domain in ps.get("suggested_domain", ["Unknown"]):
-                    recommendations.add_property_suggestion(ps["name"], ps["evidence"], domain, ps["confidence"], ps.get("sample_values", [None])[0])
-        for op in analysis.get("new_object_properties", []):
-            if op.get("confidence", 0) >= 0.85:
-                recommendations.add_object_property_suggestion(op["name"], op["evidence"], op["domain"], op["range"], op["confidence"])
-        rec_dict = recommendations.to_dict()
-        n = rec_dict["summary"]["total_recommendations"]
-        log(f"✓ {n} recommendation(s) generated")
-    else:
-        log("\nRecommendations skipped (disabled by user)")
-        rec_dict = recommendations.to_dict()
+        # ── Serialize
+        yield sse_log("\n💾 Serializing ontology...")
+        raw = g.serialize(format="xml")
+        owl_str = raw if isinstance(raw, str) else raw.decode("utf-8")
+        owl_str = fix_owl_namespace_str(owl_str)
+        stats["triples_added"] = len(g) - triple_count
+        yield sse_log(f"✓ Serialized — {stats['triples_added']} triples added")
 
-    # ── Summary
-    log("\n" + "=" * 60)
-    log("SUMMARY")
-    log("=" * 60)
-    log(f"Total rows:           {stats['total_rows']}")
-    log(f"Successfully processed: {stats['successful']}")
-    log(f"Skipped:              {stats['skipped']}")
-    log(f"Failed:               {stats['failed']}")
-    log(f"New Cabai instances:  {stats['new_cabai']}")
-    log(f"Properties added:     {stats['total_properties_added']}")
-    log(f"New properties:       {stats['new_properties_created']}")
-    log(f"Triples added:        {stats['triples_added']}")
-    log("=" * 60)
+        # ── Recommendations
+        rec_dict = {}
+        if enable_recommendations:
+            yield sse_log("\n🔍 Analysing unmapped columns for recommendations...")
+            analysis = analyze_recommendations(client, df, ontology_schema, recommendations)
+            for cs in analysis.get("new_classes", []):
+                if not isinstance(cs, dict): continue
+                if cs.get("confidence", 0) >= 0.80:
+                    recommendations.add_class_suggestion(cs["name"], cs["evidence"], cs["confidence"], cs.get("suggested_properties"))
+            for ps in analysis.get("new_datatype_properties", []):
+                if not isinstance(ps, dict): continue
+                if ps.get("confidence", 0) >= 0.75:
+                    for domain in ps.get("suggested_domain", ["Unknown"]):
+                        recommendations.add_property_suggestion(ps["name"], ps["evidence"], domain, ps["confidence"], ps.get("sample_values", [None])[0])
+            for op in analysis.get("new_object_properties", []):
+                if not isinstance(op, dict): continue
+                if op.get("confidence", 0) >= 0.85:
+                    recommendations.add_object_property_suggestion(op["name"], op["evidence"], op["domain"], op["range"], op["confidence"])
+            rec_dict = recommendations.to_dict()
+            n = rec_dict["summary"]["total_recommendations"]
+            yield sse_log(f"✓ {n} recommendation(s) generated")
+        else:
+            yield sse_log("\nRecommendations skipped")
+            rec_dict = recommendations.to_dict()
 
-    return owl_str, stats, rec_dict, logs
+        # ── Summary
+        yield sse_log("\n" + "=" * 60)
+        yield sse_log("SUMMARY")
+        yield sse_log("=" * 60)
+        yield sse_log(f"Total rows:             {stats['total_rows']}")
+        yield sse_log(f"Successfully processed: {stats['successful']}")
+        yield sse_log(f"Skipped:                {stats['skipped']}")
+        yield sse_log(f"Failed:                 {stats['failed']}")
+        yield sse_log(f"New Cabai instances:    {stats['new_cabai']}")
+        yield sse_log(f"Properties added:       {stats['total_properties_added']}")
+        yield sse_log(f"New properties:         {stats['new_properties_created']}")
+        yield sse_log(f"Triples added:          {stats['triples_added']}")
+        yield sse_log("=" * 60)
+
+        # ── Send final payload with OWL + stats + recommendations
+        owl_b64 = base64.b64encode(owl_str.encode("utf-8")).decode("ascii")
+        yield sse_done({
+            "stats": stats,
+            "recommendations": rec_dict,
+            "owl_file_b64": owl_b64,
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        yield sse_error(str(e))
 
 
 # =============================================================================
@@ -507,7 +523,7 @@ def process_ontology(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations:
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "Ontology Updater API v3"}
+    return {"status": "ok", "message": "Ontology Updater API v4"}
 
 
 @app.get("/health")
@@ -526,37 +542,19 @@ async def update_ontology(
     if not owl_file.filename.lower().endswith(".owl"):
         raise HTTPException(status_code=400, detail="owl_file must be a .owl file")
     if not os.environ.get("OPENAI_API_KEY"):
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured on server")
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not set on server")
 
     csv_bytes = await csv_file.read()
     owl_bytes = await owl_file.read()
-
-    try:
-        owl_str, stats, recommendations, logs = process_ontology(
-            csv_bytes=csv_bytes,
-            owl_bytes=owl_bytes,
-            enable_recommendations=enable_recommendations,
-        )
-    except Exception as e:
-        import traceback
-        # Full traceback to Railway logs
-        traceback.print_exc()
-        # Brief message + any partial logs to frontend
-        brief = str(e)
-        return JSONResponse(status_code=500, content={
-            "success": False,
-            "detail": brief,
-            "logs": [f"✗ Fatal error: {brief}"],
-        })
-
-    owl_b64 = base64.b64encode(owl_str.encode("utf-8")).decode("ascii")
     owl_filename = owl_file.filename.replace(".owl", "_updated.owl")
 
-    return JSONResponse({
-        "success": True,
-        "stats": stats,
-        "recommendations": recommendations,
-        "logs": logs,
-        "owl_file_b64": owl_b64,
-        "owl_filename": owl_filename,
-    })
+    def generator():
+        # First event: send the output filename
+        yield f"data: {json.dumps({'type': 'meta', 'owl_filename': owl_filename})}\n\n"
+        yield from stream_process(csv_bytes, owl_bytes, enable_recommendations)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
