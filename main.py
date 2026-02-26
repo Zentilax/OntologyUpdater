@@ -299,9 +299,19 @@ def sse_log(msg: str) -> str:
     return f"data: {json.dumps({'type': 'log', 'msg': msg})}\n\n"
 
 
-def sse_done(payload: dict) -> str:
-    """Send the final result payload."""
-    return f"data: {json.dumps({'type': 'done', **payload})}\n\n"
+def sse_done(stats: dict, rec_dict: dict) -> str:
+    """Send stats and recommendations (small payload)."""
+    return f"data: {json.dumps({'type': 'done', 'stats': stats, 'recommendations': rec_dict})}\n\n"
+
+
+def sse_file(owl_b64: str, owl_filename: str) -> Generator[str, None, None]:
+    """Send the OWL file in chunks of 512 KB to avoid SSE line-size issues."""
+    chunk_size = 512 * 1024  # 512 KB per chunk
+    total = len(owl_b64)
+    for i in range(0, total, chunk_size):
+        chunk = owl_b64[i:i + chunk_size]
+        is_last = (i + chunk_size) >= total
+        yield f"data: {json.dumps({'type': 'file_chunk', 'chunk': chunk, 'done': is_last})}\n\n"
 
 
 def sse_error(msg: str) -> str:
@@ -313,7 +323,7 @@ def sse_error(msg: str) -> str:
 # Main streaming generator — yields SSE lines one by one
 # =============================================================================
 
-def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool) -> Generator[str, None, None]:
+def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool, owl_filename: str) -> Generator[str, None, None]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         yield sse_error("OPENAI_API_KEY not configured on server")
@@ -504,13 +514,13 @@ def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: b
         yield sse_log(f"Triples added:          {stats['triples_added']}")
         yield sse_log("=" * 60)
 
-        # ── Send final payload with OWL + stats + recommendations
+        # ── Send stats + recommendations first (small)
+        yield sse_done(stats, rec_dict)
+
+        # ── Stream the OWL file in chunks
+        yield sse_log("\n📦 Sending OWL file...")
         owl_b64 = base64.b64encode(owl_str.encode("utf-8")).decode("ascii")
-        yield sse_done({
-            "stats": stats,
-            "recommendations": rec_dict,
-            "owl_file_b64": owl_b64,
-        })
+        yield from sse_file(owl_b64, owl_filename)
 
     except Exception as e:
         traceback.print_exc()
@@ -551,7 +561,7 @@ async def update_ontology(
     def generator():
         # First event: send the output filename
         yield f"data: {json.dumps({'type': 'meta', 'owl_filename': owl_filename})}\n\n"
-        yield from stream_process(csv_bytes, owl_bytes, enable_recommendations)
+        yield from stream_process(csv_bytes, owl_bytes, enable_recommendations, owl_filename)
 
     return StreamingResponse(
         generator(),
