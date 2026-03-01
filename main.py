@@ -609,12 +609,14 @@ def ontology_status():
 
 @app.get("/ontology/download-default")
 def ontology_download_default():
-    """Download the current state of the default ontology."""
-    content = _get_default_owl()
+    """
+    Return the default ontology as plain XML so the browser fetch() API
+    can read it directly (no Content-Disposition / attachment header).
+    """
+    owl_content = _get_default_owl()
     return Response(
-        content=content,
-        media_type="application/rdf+xml",
-        headers={"Content-Disposition": 'attachment; filename="default_ontology.owl"'},
+        content=owl_content,
+        media_type="text/xml; charset=utf-8",
     )
 
 
