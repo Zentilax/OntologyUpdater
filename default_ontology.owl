@@ -1,0 +1,435 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#"
+     xml:base="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
+    <owl:Ontology rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Object Properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#berasalDari -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#berasalDari">
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Cabai"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#DaerahAsal"/>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Data properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#TinggiTanaman -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#TinggiTanaman"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Umur -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Umur"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#adaptasiEkologi -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#adaptasiEkologi"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#batang -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#batang"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukBuah -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukBuah"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukKelopakBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukKelopakBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukKelopakBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukKelopakBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukPangkalDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukPangkalDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukUjungBuah -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukUjungBuah"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukUjungDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#bentukUjungDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahBiji -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahBiji"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahGagangBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahGagangBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahMahkotaBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#jumlahMahkotaBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kedudukanDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kedudukanDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kedudukanKelopakBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kedudukanKelopakBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingKelopakBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingKelopakBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingKelopakBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kelilingKelopakBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#lebarDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#lebarDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#lebarMahkotaBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#lebarMahkotaBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#luasDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#luasDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBenangsari -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBenangsari"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangGagangBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangGagangBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangKelopakBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangMahkota -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangMahkota"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangPutik -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangPutik"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#panjangTangkaiDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#posisiBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#teksturDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#teksturDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#tepiDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#tepiDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBiji -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBiji"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBuahMasak -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBuahMasak"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBuahMuda -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaBuahMuda"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaDaun -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaDaun"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaGagangBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaGagangBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaKelopakBunga -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaKelopakBunga"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaKepalaSari -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaKepalaSari"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaMahkota -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaMahkota"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaPangkalTangkaiDaunBagAtas -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaPangkalTangkaiDaunBagAtas"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaPangkalTangkaiDaunBagbawah -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaPangkalTangkaiDaunBagbawah"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaTangkaiPutik -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaTangkaiPutik"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaTangkaiSari -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#warnaTangkaiSari"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Classes
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Cabai -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Cabai"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#DaerahAsal -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#DaerahAsal"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Individuals
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#katokon -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#katokon">
+        <rdf:type rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Cabai"/>
+    </owl:NamedIndividual>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kopay -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#kopay">
+        <rdf:type rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#Cabai"/>
+        <berasalDari rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#payakumbuah"/>
+    </owl:NamedIndividual>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#manado -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#manado"/>
+    
+
+
+    <!-- http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#payakumbuah -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#payakumbuah">
+        <rdf:type rdf:resource="http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#DaerahAsal"/>
+    </owl:NamedIndividual>
+</rdf:RDF>
+
+
+
+<!-- Generated by the OWL API (version 4.5.9.2019-02-01T07:24:44Z) https://github.com/owlcs/owlapi -->
+

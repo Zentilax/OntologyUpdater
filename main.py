@@ -11,7 +11,7 @@ from typing import Generator
 import pandas as pd
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from openai import OpenAI
 from rdflib import Graph, Literal, Namespace, RDF, RDFS, OWL
 from rdflib.namespace import XSD
@@ -28,6 +28,45 @@ app.add_middleware(
 
 BASE_URI = "http://www.semanticweb.org/bagindokemas/ontologies/2026/1/untitled-ontology-328#"
 ns = Namespace(BASE_URI)
+
+# ---------------------------------------------------------------------------
+# Default ontology state
+#
+# DEFAULT_OWL_PATH   — path to the bundled .owl shipped with the repo.
+#                      Override via DEFAULT_OWL_PATH env var.
+# _default_owl_cache — mutable in-memory copy updated by the CSV pipeline
+#                      when the user does NOT supply their own OWL file.
+#                      The disk file is NEVER modified at runtime.
+# ---------------------------------------------------------------------------
+DEFAULT_OWL_PATH = os.environ.get("DEFAULT_OWL_PATH", "default_ontology.owl")
+_default_owl_cache: bytes = b""   # populated lazily by _get_default_owl()
+
+
+def _get_default_owl() -> bytes:
+    """Return the working default OWL bytes, loading from disk the first time."""
+    global _default_owl_cache
+    if _default_owl_cache:
+        return _default_owl_cache
+    if os.path.exists(DEFAULT_OWL_PATH):
+        with open(DEFAULT_OWL_PATH, "rb") as fh:
+            _default_owl_cache = fh.read()
+        return _default_owl_cache
+    # Fallback: minimal valid OWL skeleton with the same base URI
+    _default_owl_cache = (
+        '<?xml version="1.0"?>\n'
+        '<rdf:RDF\n'
+        '   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"\n'
+        '   xmlns:owl="http://www.w3.org/2002/07/owl#"\n'
+        '   xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"\n'
+        f'   xmlns="{BASE_URI}">\n'
+        f'  <owl:Ontology rdf:about="{BASE_URI}"/>\n'
+        f'  <owl:Class rdf:about="{BASE_URI}Cabai"/>\n'
+        f'  <owl:Class rdf:about="{BASE_URI}DaerahAsal"/>\n'
+        f'  <owl:ObjectProperty rdf:about="{BASE_URI}berasalDari"/>\n'
+        '</rdf:RDF>\n'
+    ).encode("utf-8")
+    return _default_owl_cache
+
 
 
 # =============================================================================
@@ -323,7 +362,7 @@ def sse_error(msg: str) -> str:
 # Main streaming generator — yields SSE lines one by one
 # =============================================================================
 
-def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool, owl_filename: str) -> Generator[str, None, None]:
+def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: bool, owl_filename: str, update_default: bool = False) -> Generator[str, None, None]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         yield sse_error("OPENAI_API_KEY not configured on server")
@@ -475,6 +514,14 @@ def stream_process(csv_bytes: bytes, owl_bytes: bytes, enable_recommendations: b
         stats["triples_added"] = len(g) - triple_count
         yield sse_log(f"✓ Serialized — {stats['triples_added']} triples added")
 
+        # ── Persist to in-memory default (only when no user OWL was supplied)
+        if update_default:
+            global _default_owl_cache
+            _default_owl_cache = owl_str.encode("utf-8")
+            yield sse_log("✓ Default ontology updated in memory (will persist until server restarts)")
+        else:
+            yield sse_log("ℹ Default ontology unchanged (user OWL mode)")
+
         # ── Recommendations
         rec_dict = {}
         if enable_recommendations:
@@ -541,27 +588,79 @@ def health():
     return {"status": "healthy", "openai_key_set": bool(os.environ.get("OPENAI_API_KEY"))}
 
 
+@app.get("/ontology/status")
+def ontology_status():
+    """
+    Returns whether the default ontology has been loaded and its size.
+    The default ontology is always used when no OWL is uploaded by the user.
+    """
+    default_bytes = _get_default_owl()
+    return {
+        "default_ontology_loaded": bool(default_bytes),
+        "default_ontology_size_bytes": len(default_bytes),
+        "default_owl_path": DEFAULT_OWL_PATH,
+        "note": (
+            "Upload a CSV only (no OWL) to update the default ontology. "
+            "Upload both CSV + OWL to process with your own OWL — "
+            "the default will NOT be modified and the result is ephemeral."
+        ),
+    }
+
+
+@app.get("/ontology/download-default")
+def ontology_download_default():
+    """Download the current state of the default ontology."""
+    content = _get_default_owl()
+    return Response(
+        content=content,
+        media_type="application/rdf+xml",
+        headers={"Content-Disposition": 'attachment; filename="default_ontology.owl"'},
+    )
+
+
 @app.post("/update-ontology")
 async def update_ontology(
     csv_file: UploadFile = File(...),
-    owl_file: UploadFile = File(...),
+    owl_file: UploadFile = File(None),   # optional — omit to use the default ontology
     enable_recommendations: bool = Form(True),
 ):
+    """
+    Update an OWL ontology with data from a CSV file.
+
+    **Two modes:**
+
+    - **Default mode** (`owl_file` omitted): The server's built-in default OWL is
+      used as the base.  After processing, the updated OWL is saved back into the
+      in-memory default so subsequent runs build on top of previous ones.
+      The result is also streamed back so you can download it.
+
+    - **User OWL mode** (`owl_file` supplied): Your uploaded OWL is used as the base.
+      The default ontology is **not touched**.  The updated OWL is streamed back
+      for download and then discarded — it is gone on the next request.
+    """
     if not csv_file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="csv_file must be a .csv file")
-    if not owl_file.filename.lower().endswith(".owl"):
+    if owl_file is not None and not owl_file.filename.lower().endswith(".owl"):
         raise HTTPException(status_code=400, detail="owl_file must be a .owl file")
     if not os.environ.get("OPENAI_API_KEY"):
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not set on server")
 
     csv_bytes = await csv_file.read()
-    owl_bytes = await owl_file.read()
-    owl_filename = owl_file.filename.replace(".owl", "_updated.owl")
+
+    using_default = (owl_file is None or owl_file.filename == "")
+    if using_default:
+        owl_bytes = _get_default_owl()
+        owl_filename = "default_ontology_updated.owl"
+    else:
+        owl_bytes = await owl_file.read()
+        owl_filename = owl_file.filename.replace(".owl", "_updated.owl")
 
     def generator():
-        # First event: send the output filename
-        yield f"data: {json.dumps({'type': 'meta', 'owl_filename': owl_filename})}\n\n"
-        yield from stream_process(csv_bytes, owl_bytes, enable_recommendations, owl_filename)
+        yield f"data: {json.dumps({'type': 'meta', 'owl_filename': owl_filename, 'mode': 'default' if using_default else 'user'})}\n\n"
+        yield from stream_process(
+            csv_bytes, owl_bytes, enable_recommendations, owl_filename,
+            update_default=using_default,
+        )
 
     return StreamingResponse(
         generator(),
